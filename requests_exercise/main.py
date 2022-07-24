@@ -1,11 +1,12 @@
 # Start solution here
 
-import requests
-from pprint import pprint
 import os
-import pandas as pd
 import time
+from pprint import pprint
+
 import numpy as np
+import pandas as pd
+import requests
 
 _BASE_DIR = os.path.dirname(__file__)
 
@@ -19,7 +20,7 @@ def get_currency_name(currency_code):
         if currency['id'] == currency_code:
             return (currency['name'], currency['id'])
 
-    return (None, currency['id'])
+    return (None, currency_code)
 
 
 def currency_exchange_data_to_file(base_currency_code):
@@ -66,7 +67,68 @@ def currency_exchange_data_to_file(base_currency_code):
 
     filename = f'{base_currency_name}-exchange_output.{time.time()}.csv'
     df.to_csv(path_or_buf=os.path.join(_BASE_DIR, filename), index=False)
+    return filename
+
+
+def get_btc_trade_price(currency_code, trade_type):
+    currency_code, trade_type = currency_code.upper(), trade_type.lower()
+    if trade_type not in {'buy', 'sell', 'spot'}:
+        raise ValueError('The trade type must be "buy", "sell", or "spot".')
+
+    price_data = requests.get(
+        f'https://api.coinbase.com/v2/prices/BTC-{currency_code}/{trade_type}').json()
+
+    if 'errors' in price_data:
+        raise ValueError(price_data['errors'][0]['message'])
+
+    return float(price_data['data']['amount'])
 
 
 if __name__ == "__main__":
-    pass
+
+    command = -1
+    while command != 0:
+
+        print("MENU\n"
+              "1) Get currency name from currency code.\n"
+              "2) Generate CSV of exchange rates relative to a specified currency.\n"
+              "3) Get bitcoin buy, sell, or spot price.\n"
+              "0) Exit.")
+        command = float(input("Choose an option: "))
+
+        if command == 1:
+            currency_code = input("\nEnter a currency code (e.g. USD): ")
+            currency_name, currency_code = get_currency_name(currency_code)
+            if currency_name is not None:
+                print(
+                    f"The currency name for {currency_code} is {currency_name}.\n")
+            else:
+                print(f"Sorry, the currency code {currency_code} is either invalid, "
+                      "or we can't find a name for it.\n")
+
+        elif command == 2:
+            base_currency_code = input(
+                "\nEnter a base currency code (e.g. BTC): ")
+            filename = currency_exchange_data_to_file(base_currency_code)
+            print(f"The currency exchange rates relative to {base_currency_code} "
+                  f"have been output to {filename}.\n")
+
+        elif command == 3:
+            currency_code = input(
+                "\nEnter the target currency code (e.g. USD): ").upper()
+
+            trade_type, trade_type_map = -1, {1: "buy", 2: "sell", 3: "spot"}
+            while trade_type not in trade_type_map:
+                print("\n1) Buy\n2) Sell\n3) Spot")
+                trade_type = float(input("Choose an option: "))
+            trade_type = trade_type_map[trade_type]
+
+            print(f"\nThe {trade_type} price of 1 BTC is "
+                  f"{get_btc_trade_price(currency_code, trade_type)} "
+                  f"{currency_code}.\n")
+
+        elif command == 0:
+            break
+
+        else:
+            print("\nInvalid option.\n")
